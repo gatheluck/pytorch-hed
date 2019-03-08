@@ -4,27 +4,30 @@
 
 # import torch libraries
 import numpy as np
-import torch.optim as optim
-import torchvision.transforms as transforms
+from torch import nn, optim
 from torch.utils.data import Dataset, DataLoader
+import torchvision.transforms as transforms
 
 # import utility functions
 from model import *
 from trainer import Trainer
 from dataproc import TrainDataset
+from options import TrainOptions
 
 # fix random seed
 rng = np.random.RandomState(37148)
 
+opt = TrainOptions().parse()
+
 # GPU ID
-gpuID = 0
+# gpuID = 0
 
 # batch size
-nBatch = 1
+# nBatch = 1
 
 # load the images dataset
 dataRoot = 'data/HED-BSDS/'
-modelPath = 'model/vgg16.pth'
+modelPath = 'model/vgg16_pth-IN.pth'
 valPath = dataRoot+'val_pair.lst'
 trainPath = dataRoot+'train_pair.lst'
 
@@ -59,11 +62,13 @@ model_dict = net.state_dict()
 model_dict.update(pretrained_dict)
 net.load_state_dict(model_dict)
 
-net.cuda(gpuID)
+net = net.to(opt.device)
+if opt.cuda and torch.cuda.device_count() > 1:
+	net = nn.DataParallel(net)
 
 # define the optimizer
-lr = 1e-4
-lrDecay = 1e-1
+# lr = 1e-4
+# lrDecay = 1e-1
 lrDecayEpoch = {3,5,8,10,12}
 
 fuse_params = list(map(id, net.fuse.parameters()))
@@ -73,14 +78,14 @@ base_params = filter(lambda p: id(p) not in conv5_params+fuse_params,
 
 optimizer = torch.optim.SGD([
             {'params': base_params},
-            {'params': net.conv5.parameters(), 'lr': lr * 100},
-            {'params': net.fuse.parameters(), 'lr': lr * 0.001}
-            ], lr=lr, momentum=0.9)
+            {'params': net.conv5.parameters(), 'lr': opt.lr * 100},
+            {'params': net.fuse.parameters(), 'lr': opt.lr * 0.001}
+            ], lr=opt.lr, momentum=opt.momentum)
 
 # initialize trainer class
 trainer = Trainer(net, optimizer, trainDataloader, valDataloader, 
-                  nBatch=nBatch, maxEpochs=15, cuda=True, gpuID=gpuID,
-                  lrDecayEpochs=lrDecayEpoch)
+                  # nBatch=opt.batch_size, maxEpochs=15, cuda=True, gpuID=gpuID,
+                  opt, lrDecayEpochs=lrDecayEpoch)
 
 # train the network
 trainer.train()
