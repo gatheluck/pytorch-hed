@@ -17,8 +17,6 @@ from options import TrainOptions
 # fix random seed
 rng = np.random.RandomState(37148)
 
-opt = TrainOptions().parse()
-
 # GPU ID
 # gpuID = 0
 
@@ -26,72 +24,85 @@ opt = TrainOptions().parse()
 # nBatch = 1
 
 # load the images dataset
-dataRoot = 'data/HED-BSDS/'
-modelPath = 'model/vgg16_pth-IN.pth'
-valPath = dataRoot+'val_pair.lst'
-trainPath = dataRoot+'train_pair.lst'
+# dataRoot = 'data/HED-BSDS/'
+# modelPath = 'model/vgg16_pth-IN.pth'
 
-# create data loaders from dataset
-std=[0.229, 0.224, 0.225]
-mean=[0.485, 0.456, 0.406]
+def train(opt):
+	valPath   = opt.data_root+'val_pair.lst'
+	trainPath = opt.data_root+'train_pair.lst'
 
-transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(mean,std)
-            ])
-targetTransform = transforms.Compose([
-                transforms.ToTensor()
-            ])
+	# create data loaders from dataset
+	std=[0.229, 0.224, 0.225]
+	mean=[0.485, 0.456, 0.406]
 
-valDataset = TrainDataset(valPath, dataRoot, 
-                          transform, targetTransform)
-trainDataset = TrainDataset(trainPath, dataRoot, 
-                            transform, targetTransform)
+	transform = transforms.Compose([
+									transforms.ToTensor(),
+									transforms.Normalize(mean,std)
+							])
+	targetTransform = transforms.Compose([
+									transforms.ToTensor()
+							])
 
-valDataloader = DataLoader(valDataset, shuffle=False)
-trainDataloader = DataLoader(trainDataset, shuffle=True)
+	valDataset = TrainDataset(valPath, opt.data_root, transform, targetTransform)
+	trainDataset = TrainDataset(trainPath, opt.data_root, transform, targetTransform)
 
-# initialize the network
-if opt.arch == 'vgg16':
-	net = HED_vgg(False)
-elif opt.arch == 'vgg16_bn':
-	net = HED_vgg(True)
-else:
-	raise NotImplementedError
+	valDataloader = DataLoader(valDataset, shuffle=False)
+	trainDataloader = DataLoader(trainDataset, shuffle=True)
 
-net.apply(weights_init)
+	# initialize the network
+	if opt.arch == 'vgg16':
+		net = HED_vgg16()
+	elif opt.arch == 'vgg16_bn':
+		net = HED_vgg16_bn()
+	else:
+		raise NotImplementedError
 
-pretrained_dict = torch.load(modelPath)
-pretrained_dict = convert_vgg(pretrained_dict)
+	net.apply(weights_init)
 
-model_dict = net.state_dict()
-model_dict.update(pretrained_dict)
-net.load_state_dict(model_dict)
+	pretrained_dict = torch.load(opt.bb_weight)
+	# if opt.arch == 'vgg16':
+	# 	# pretrained_dict = convert_pth_vgg16(pretrained_dict)
+	# 	pretrained_dict = state_dict_pth2custom(pretrained_dict, custom_vgg16)
+	# elif opt.arch == 'vgg16_bn':
+	# 	# pretrained_dict = convert_pth_vgg16_bn(pretrained_dict)
+	# 	pretrained_dict = state_dict_pth2custom(pretrained_dict, custom_vgg16_bn) 
+	# else:
+	# 	raise NotImplementedError
 
-net = net.to(opt.device)
-if opt.cuda and torch.cuda.device_count() > 1:
-	net = nn.DataParallel(net)
+	net.load_state_dict(pretrained_dict, strict=False)
 
-# define the optimizer
-# lr = 1e-4
-# lrDecay = 1e-1
-lrDecayEpoch = {3,5,8,10,12}
+	# model_dict = net.state_dict()
+	# model_dict.update(pretrained_dict)
+	# net.load_state_dict(model_dict)
 
-fuse_params = list(map(id, net.fuse.parameters()))
-conv5_params = list(map(id, net.conv5.parameters()))
-base_params = filter(lambda p: id(p) not in conv5_params+fuse_params,
-                     net.parameters())
+	net = net.to(opt.device)
+	if opt.cuda and torch.cuda.device_count() > 1:
+		net = nn.DataParallel(net)
 
-optimizer = torch.optim.SGD([
-            {'params': base_params},
-            {'params': net.conv5.parameters(), 'lr': opt.lr * 100},
-            {'params': net.fuse.parameters(), 'lr': opt.lr * 0.001}
-            ], lr=opt.lr, momentum=opt.momentum)
+	# define the optimizer
+	# lr = 1e-4
+	# lrDecay = 1e-1
+	lrDecayEpoch = {3,5,8,10,12}
 
-# initialize trainer class
-trainer = Trainer(net, optimizer, trainDataloader, valDataloader, 
-                  # nBatch=opt.batch_size, maxEpochs=15, cuda=True, gpuID=gpuID,
-                  opt, lrDecayEpochs=lrDecayEpoch)
+	fuse_params = list(map(id, net.fuse.parameters()))
+	conv5_params = list(map(id, net.conv5.parameters()))
+	base_params = filter(lambda p: id(p) not in conv5_params+fuse_params,
+											net.parameters())
 
-# train the network
-trainer.train()
+	optimizer = torch.optim.SGD([
+							{'params': base_params},
+							{'params': net.conv5.parameters(), 'lr': opt.lr * 100},
+							{'params': net.fuse.parameters(), 'lr': opt.lr * 0.001}
+							], lr=opt.lr, momentum=opt.momentum)
+
+	# initialize trainer class
+	trainer = Trainer(net, optimizer, trainDataloader, valDataloader, 
+										# nBatch=opt.batch_size, maxEpochs=15, cuda=True, gpuID=gpuID,
+										opt, lrDecayEpochs=lrDecayEpoch)
+
+	# train the network
+	trainer.train()
+
+if __name__ == "__main__":
+ opt = TrainOptions().parse()
+ train(opt)

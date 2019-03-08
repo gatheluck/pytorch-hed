@@ -124,7 +124,7 @@ class Trainer(object):
 					self.val(epoch+1)
 								
 		# save model after every epoch
-		torch.save(self.generator.state_dict(), '%s/HED.pth' % (self.log_dir))
+		torch.save(self.generator.module.state_dict() if isinstance(self.generator, nn.DataParallel) else self.generator.state_dict(), '%s/HED.pth' % (self.log_dir))
 
 	def val(self, epoch):
 		# eval model on validation set
