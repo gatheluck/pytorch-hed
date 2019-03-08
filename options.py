@@ -21,7 +21,7 @@ class BaseOptions():
 		# dataset
 		parser.add_argument('-d', '--dataset', type=str, default='bsds', choices=dataset_names, help='dataset: ' + ' | '.join(dataset_names), metavar='DATASET')
 		parser.add_argument('-j', '--num_workers', type=int, default=4, help='number of workers for data loading')
-		parser.add_argument('-b', '--batch_size', type=int, default=64, help='batch size')
+		parser.add_argument('-b', '--batch_size', type=int, default=8, help='batch size')
 		# GPU
 		parser.add_argument('--cuda', action='store_true', default=False, help='enable GPU')
 		# log

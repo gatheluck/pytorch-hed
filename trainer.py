@@ -33,6 +33,7 @@ class Trainer(object):
 		# self.cuda = cuda
 		# self.gpuID = gpuID
 		self.log_dir = opt.log_dir
+		self.device = opt.device
 		
 		# define an optimizer
 		self.optimG = optimizerG
@@ -78,9 +79,7 @@ class Trainer(object):
 			for i, sample in enumerate(tbar, 0):
 				# get the training batch
 				data, target = sample
-				
-				# if self.cuda:
-				#     data, target = data.cuda(self.gpuID), target.cuda(self.gpuID)
+				data, target = data.to(self.device), target.cuda(self.device)
 				data, target = Variable(data), Variable(target)
 				
 				# generator forward
@@ -143,9 +142,7 @@ class Trainer(object):
 		for i, sample in enumerate(self.valDataloader, 0):            
 			# get the test sample
 			data, target = sample
-			
-			# if self.cuda:
-			#     data, target = data.cuda(self.gpuID), target.cuda(self.gpuID)
+			data, target = data.to(self.device), target.to(self.device)
 			data, target = Variable(data), Variable(target)
 			
 			# perform forward computation

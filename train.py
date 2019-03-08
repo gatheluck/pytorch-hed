@@ -52,7 +52,13 @@ valDataloader = DataLoader(valDataset, shuffle=False)
 trainDataloader = DataLoader(trainDataset, shuffle=True)
 
 # initialize the network
-net = HED()
+if opt.arch == 'vgg16':
+	net = HED_vgg(False)
+elif opt.arch == 'vgg16_bn':
+	net = HED_vgg(True)
+else:
+	raise NotImplementedError
+
 net.apply(weights_init)
 
 pretrained_dict = torch.load(modelPath)
