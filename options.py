@@ -25,7 +25,7 @@ class BaseOptions():
 		# GPU
 		parser.add_argument('--cuda', action='store_true', default=False, help='enable GPU')
 		# log
-		parser.add_argument('--print_freq', type=int, default=10, help='print frequency')
+		parser.add_argument('--print_freq', type=int, default=1000, help='print frequency')
 		parser.add_argument('-l', '--log_dir', type=str, required=True, help='log directory')
 		parser.add_argument('-r', '--result', type=str, required=True, help='result json path')
 

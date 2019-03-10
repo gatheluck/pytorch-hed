@@ -83,7 +83,8 @@ def train(opt):
 	# define the optimizer
 	# lr = 1e-4
 	# lrDecay = 1e-1
-	lrDecayEpoch = {3,5,8,10,12}
+	# lrDecayEpoch = {3,5,8,10,12}
+	lrDecayEpoch = {}
 
 	fuse_params = list(map(id, net.fuse.parameters()))
 	if opt.arch == 'vgg16' or opt.arch == 'vgg16bn':
@@ -92,8 +93,13 @@ def train(opt):
 		optimizer = torch.optim.SGD([
 							{'params': base_params},
 							{'params': net.conv5.parameters(), 'lr': opt.lr * 100},
-							{'params': net.fuse.parameters(), 'lr': opt.lr * 0.001}
-							], lr=opt.lr, momentum=opt.momentum)
+							{'params': net.fuse.parameters(),  'lr': opt.lr * 0.001}
+							], lr=opt.lr, momentum=opt.momentum, weight_decay=opt.wd)
+		# optimizer = torch.optim.SGD([
+		# 					{'params': base_params},
+		# 					{'params': net.conv5.parameters(), 'lr': opt.lr * 100},
+		# 					{'params': net.fuse.parameters(), 'lr': opt.lr * 0.001}
+		# 					], lr=opt.lr, momentum=opt.momentum, weight_decay=opt.wd)
 	else:
 		conv_last_params = list(map(id, net.layer4.parameters()))
 		base_params = filter(lambda p: id(p) not in conv_last_params+fuse_params, net.parameters())
@@ -101,7 +107,7 @@ def train(opt):
 								{'params': base_params},
 								{'params': net.layer4.parameters(), 'lr': opt.lr * 100},
 								{'params': net.fuse.parameters(), 'lr': opt.lr * 0.001}
-								], lr=opt.lr, momentum=opt.momentum)
+								], lr=opt.lr, momentum=opt.momentum, weight_decay=opt.wd)
 
 	# initialize trainer class
 	trainer = Trainer(net, optimizer, trainDataloader, valDataloader, 

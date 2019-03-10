@@ -66,7 +66,7 @@ class Trainer(object):
 
 	def train(self):
 		best_loss = np.inf
-		curr_loss = np.inf
+		curr_loss = 0
 		best_epoch = 0
 
 		# function to train network
@@ -144,7 +144,7 @@ class Trainer(object):
 					if curr_loss < best_loss:
 						best_loss = curr_loss
 						best_epoch = epoch
-						torch.save(self.generator.module.state_dict() if isinstance(self.generator, nn.DataParallel) else self.generator.state_dict(), self.log_dir+"weight_best.pth")
+						torch.save(self.generator.module.state_dict() if isinstance(self.generator, nn.DataParallel) else self.generator.state_dict(), self.log_dir+"/weight_best.pth")
 						# save result
 						save_result({
 							'loss': best_loss,
@@ -152,7 +152,7 @@ class Trainer(object):
 						curr_loss = 0.0
 								
 		# save model after every epoch
-		torch.save(self.generator.module.state_dict() if isinstance(self.generator, nn.DataParallel) else self.generator.state_dict(), self.log_dir+"weight_final.pth")
+		torch.save(self.generator.module.state_dict() if isinstance(self.generator, nn.DataParallel) else self.generator.state_dict(), self.log_dir+"/weight_final.pth")
 		# save result
 		save_result({
 			'loss': curr_loss,
