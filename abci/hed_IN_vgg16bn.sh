@@ -9,8 +9,8 @@
 source /etc/profile.d/modules.sh
 module load cuda/9.0/9.0.176.4
 export PATH="/home/aaa10329ah/anaconda3/bin:${PATH}"
-source activate faster-rcnn.pytorch
-cd /home/aaa10329ah/user/waseda/faster-rcnn
+source activate waseda
+cd /home/aaa10329ah/user/waseda/hed
 # script
 
 python train.py -a vgg16bn \
