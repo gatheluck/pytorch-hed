@@ -58,14 +58,15 @@ class Trainer(object):
 		self.lrDecayEpochs = lrDecayEpochs
 		
 		self.gamma = opt.gamma
-		self.valInterval = 500
+		self.valInterval = opt.print_freq
 		self.dispInterval = opt.print_freq
 		self.timeformat = '%Y-%m-%d %H:%M:%S'
 
 		self.opt = opt
 
 	def train(self):
-		best_loss  = np.inf
+		best_loss = np.inf
+		curr_loss = np.inf
 		best_epoch = 0
 
 		# function to train network
@@ -81,7 +82,6 @@ class Trainer(object):
 			# train the network
 			losses = []
 			lossAcc = 0.0
-			curr_loss = 0.0
 			tbar = tqdm(self.trainDataloader)
 			for i, sample in enumerate(tbar, 0):
 				# get the training batch
@@ -90,20 +90,34 @@ class Trainer(object):
 				data, target = Variable(data), Variable(target)
 				
 				# generator forward
-				Y = target
-				Y1, Y2, Y3, Y4, Y5, Yfuse = self.generator(data) 
-				
-				# compute loss for batch
-				loss_1 = self.bce2d(Y1, Y)
-				loss_2 = self.bce2d(Y2, Y)
-				loss_3 = self.bce2d(Y3, Y)
-				loss_4 = self.bce2d(Y4, Y)
-				loss_5 = self.bce2d(Y5, Y)
-				loss_fuse = self.bce2d(Yfuse, Y)
-				
-				loss = loss_1 + loss_2 + loss_3 + loss_4 + loss_5 + loss_fuse # this part is different from original paper
-				if np.isnan(float(loss.item())): raise ValueError('loss is nan while training')
-				
+				if self.opt.arch == 'vgg16' or self.opt.arch == 'vgg16bn':
+					Y = target
+					Y1, Y2, Y3, Y4, Y5, Yfuse = self.generator(data) 
+					
+					# compute loss for batch
+					loss_1 = self.bce2d(Y1, Y)
+					loss_2 = self.bce2d(Y2, Y)
+					loss_3 = self.bce2d(Y3, Y)
+					loss_4 = self.bce2d(Y4, Y)
+					loss_5 = self.bce2d(Y5, Y)
+					loss_fuse = self.bce2d(Yfuse, Y)
+					
+					loss = loss_1 + loss_2 + loss_3 + loss_4 + loss_5 + loss_fuse # this part is different from original paper
+					if np.isnan(float(loss.item())): raise ValueError('loss is nan while training')
+				else:
+					Y = target
+					Y1, Y2, Y3, Y4, Yfuse = self.generator(data) 
+					
+					# compute loss for batch
+					loss_1 = self.bce2d(Y1, Y)
+					loss_2 = self.bce2d(Y2, Y)
+					loss_3 = self.bce2d(Y3, Y)
+					loss_4 = self.bce2d(Y4, Y)
+					loss_fuse = self.bce2d(Yfuse, Y)
+					
+					loss = loss_1 + loss_2 + loss_3 + loss_4 + loss_fuse # this part is different from original paper
+					if np.isnan(float(loss.item())): raise ValueError('loss is nan while training')
+
 				losses.append(loss)
 				lossAcc += loss.item()
 				curr_loss += loss.item()
@@ -127,16 +141,15 @@ class Trainer(object):
 				# perform validation every 500 iters
 				if (i+1) % self.valInterval == 0:
 					self.val(epoch+1)
-
-			# end of the epoch
-			if curr_loss < best_loss:
-				best_loss = curr_loss
-				best_epoch = epoch
-				torch.save(self.generator.module.state_dict() if isinstance(self.generator, nn.DataParallel) else self.generator.state_dict(), self.log_dir+"weight_best.pth")
-				# save result
-				save_result({
-					'loss': best_loss,
-				}, self.opt.log_dir, self.opt.result+'_best.json')
+					if curr_loss < best_loss:
+						best_loss = curr_loss
+						best_epoch = epoch
+						torch.save(self.generator.module.state_dict() if isinstance(self.generator, nn.DataParallel) else self.generator.state_dict(), self.log_dir+"weight_best.pth")
+						# save result
+						save_result({
+							'loss': best_loss,
+						}, self.opt.log_dir, self.opt.result+'_best.json')
+						curr_loss = 0.0
 								
 		# save model after every epoch
 		torch.save(self.generator.module.state_dict() if isinstance(self.generator, nn.DataParallel) else self.generator.state_dict(), self.log_dir+"weight_final.pth")
@@ -160,26 +173,45 @@ class Trainer(object):
 			data, target = data.to(self.device), target.to(self.device)
 			data, target = Variable(data), Variable(target)
 			
-			# perform forward computation
-			d1, d2, d3, d4, d5, d6 = self.generator.forward(data)
-			
-			# transform to grayscale images
-			d1 = self.grayTrans(self.crop(d1))
-			d2 = self.grayTrans(self.crop(d2))
-			d3 = self.grayTrans(self.crop(d3))
-			d4 = self.grayTrans(self.crop(d4))
-			d5 = self.grayTrans(self.crop(d5))
-			d6 = self.grayTrans(self.crop(d6))
-			tar = self.grayTrans(self.crop(target))
-			
-			d1.save('{}/sample{:02d}_1.png'.format(dirName, i))
-			d2.save('{}/sample{:02d}_2.png'.format(dirName, i))
-			d3.save('{}/sample{:02d}_3.png'.format(dirName, i))
-			d4.save('{}/sample{:02d}_4.png'.format(dirName, i))
-			d5.save('{}/sample{:02d}_5.png'.format(dirName, i))
-			d6.save('{}/sample{:02d}_6.png'.format(dirName, i))
-			tar.save('{}/sample{:02d}_T.png'.format(dirName, i))
+			if self.opt.arch == 'vgg16' or self.opt.arch == 'vgg16bn':
+				# perform forward computation
+				d1, d2, d3, d4, d5, d6 = self.generator.forward(data)
 				
+				# transform to grayscale images
+				d1 = self.grayTrans(self.crop(d1))
+				d2 = self.grayTrans(self.crop(d2))
+				d3 = self.grayTrans(self.crop(d3))
+				d4 = self.grayTrans(self.crop(d4))
+				d5 = self.grayTrans(self.crop(d5))
+				d6 = self.grayTrans(self.crop(d6))
+				tar = self.grayTrans(self.crop(target))
+				
+				d1.save('{}/sample{:02d}_1.png'.format(dirName, i))
+				d2.save('{}/sample{:02d}_2.png'.format(dirName, i))
+				d3.save('{}/sample{:02d}_3.png'.format(dirName, i))
+				d4.save('{}/sample{:02d}_4.png'.format(dirName, i))
+				d5.save('{}/sample{:02d}_5.png'.format(dirName, i))
+				d6.save('{}/sample{:02d}_6.png'.format(dirName, i))
+				tar.save('{}/sample{:02d}_T.png'.format(dirName, i))
+			else:
+				# perform forward computation
+				d1, d2, d3, d4, d5 = self.generator.forward(data)
+				
+				# transform to grayscale images
+				d1 = self.grayTrans(self.crop(d1))
+				d2 = self.grayTrans(self.crop(d2))
+				d3 = self.grayTrans(self.crop(d3))
+				d4 = self.grayTrans(self.crop(d4))
+				d5 = self.grayTrans(self.crop(d5))
+				tar = self.grayTrans(self.crop(target))
+				
+				d1.save('{}/sample{:02d}_1.png'.format(dirName, i))
+				d2.save('{}/sample{:02d}_2.png'.format(dirName, i))
+				d3.save('{}/sample{:02d}_3.png'.format(dirName, i))
+				d4.save('{}/sample{:02d}_4.png'.format(dirName, i))
+				d5.save('{}/sample{:02d}_5.png'.format(dirName, i))
+				tar.save('{}/sample{:02d}_T.png'.format(dirName, i))
+
 		print('evaluate done')
 		self.generator.train()
     

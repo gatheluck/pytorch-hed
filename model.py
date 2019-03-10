@@ -25,71 +25,147 @@ def transfer_weights(model_from, model_to):
 			wf[k] = wt[k]
 	model_to.load_state_dict(wf)
 
-# def convert_pth_vgg16(vgg_pth):
-# 	net = vgg16()
-# 	vgg_own_items = list(net.state_dict().items())
-# 	vgg_pth_items = list(vgg_pth.items())
-# 	pretrain_model = {}
-# 	j = 0
-# 	for k, v in net.state_dict().items():
-# 		print("k_pth:", k)
-# 		v = vgg_pth_items[j][1]
-# 		#print("v:", v)
-# 		k = vgg_own_items[j][0]
-# 		print("k_own:", k)
-# 		pretrain_model[k] = v
-# 		j += 1
-# 	return pretrain_model
+def conv3x3(in_planes, out_planes, stride=1):
+	"""3x3 convolution with padding"""
+	return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
 
-# def convert_pth_vgg16_bn(vgg_pth):
-# 	net = custom_vgg16_bn()
-# 	vgg_own_items = list(net.state_dict().items())
-# 	vgg_pth_items = list(vgg_pth.items())
-# 	pretrain_model = {}
-# 	j = 0
-# 	for k, v in net.state_dict().items():
-# 		print("k_pth:", k)
-# 		v = vgg_pth_items[j][1]
-# 		# print("v:", v)
-# 		k = vgg_own_items[j][0]
-# 		print("k_own:", k)
-# 		pretrain_model[k] = v
-# 		j += 1
-# 	return pretrain_model
+def conv1x1(in_planes, out_planes, stride=1):
+	"""1x1 convolution"""
+	return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
-# def state_dict_pth2custom(pth_state_dict, cst_model_class):
-# 	cst_model = cst_model_class()
-# 	cst_items = list(cst_model.state_dict().items())
-# 	pth_items = list(pth_state_dict.items())
-# 	print("cst_items[:][0]:", cst_items[:][0])
-# 	print("pth_items[:][0]:", pth_items[:][0])
-# 	print("len(cst_items):", len(cst_items))
-# 	print("len(pth_items):", len(pth_items))
+class BasicBlock(nn.Module):
+	expansion = 1
 
-# 	for i in range(len(cst_items)):
-# 		key = cst_items[i][0]
-# 		if 'num_batches_tracked' in key:
-# 			del cst_items[i][0]
+	def __init__(self, inplanes, planes, stride=1, downsample=None):
+		super(BasicBlock, self).__init__()
+		self.conv1 = conv3x3(inplanes, planes, stride)
+		self.bn1 = nn.BatchNorm2d(planes)
+		self.relu = nn.ReLU(inplace=True)
+		self.conv2 = conv3x3(planes, planes)
+		self.bn2 = nn.BatchNorm2d(planes)
+		self.downsample = downsample
+		self.stride = stride
 
-# 	for i in range(len(cst_items)):
-# 		print("cst_items[{}][0]".format(i), cst_items[i][0])
+	def forward(self, x):
+		identity = x
 
-# 	for i in range(len(pth_items)):
-# 		print("pth_items[{}][0]".format(i), pth_items[i][0])
+		out = self.conv1(x)
+		out = self.bn1(out)
+		out = self.relu(out)
 
-# 	state_dict = {}
-# 	idx_cst = 0
-# 	idx_pth = 0
-# 	for k, v in cst_model.state_dict().items():
-# 		if 'num_batches_tracked' in k:
-# 			idx_cst
-# 		k = cst_items[j][0]
-# 		v = pth_items[j][1]
-# 		state_dict[k] = v
-# 		j += 1
-# 	return state_dict
+		out = self.conv2(out)
+		out = self.bn2(out)
+
+		if self.downsample is not None:
+				identity = self.downsample(x)
+
+		out += identity
+		out = self.relu(out)
+
+		return out
+
+class Bottleneck(nn.Module):
+	expansion = 4
+
+	def __init__(self, inplanes, planes, stride=1, downsample=None):
+		super(Bottleneck, self).__init__()
+		self.conv1 = conv1x1(inplanes, planes)
+		self.bn1 = nn.BatchNorm2d(planes)
+		self.conv2 = conv3x3(planes, planes, stride)
+		self.bn2 = nn.BatchNorm2d(planes)
+		self.conv3 = conv1x1(planes, planes * self.expansion)
+		self.bn3 = nn.BatchNorm2d(planes * self.expansion)
+		self.relu = nn.ReLU(inplace=True)
+		self.downsample = downsample
+		self.stride = stride
+
+	def forward(self, x):
+		identity = x
+
+		out = self.conv1(x)
+		out = self.bn1(out)
+		out = self.relu(out)
+
+		out = self.conv2(out)
+		out = self.bn2(out)
+		out = self.relu(out)
+
+		out = self.conv3(out)
+		out = self.bn3(out)
+
+		if self.downsample is not None:
+				identity = self.downsample(x)
+
+		out += identity
+		out = self.relu(out)
+
+		return out
 
 
+class custom_resnet(nn.Module):
+	def __init__(self, block, layers, num_classes=1000, zero_init_residual=False):
+		super(custom_resnet, self).__init__()
+		self.inplanes = 64
+		self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,bias=False)
+		self.bn1 = nn.BatchNorm2d(64)
+		self.relu = nn.ReLU(inplace=True)
+		self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+		self.layer1 = self._make_layer(block, 64, layers[0])
+		self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+		self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+		self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+		self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+		self.fc = nn.Linear(512 * block.expansion, num_classes)
+
+		for m in self.modules():
+			if isinstance(m, nn.Conv2d):
+				nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+			elif isinstance(m, nn.BatchNorm2d):
+				nn.init.constant_(m.weight, 1)
+				nn.init.constant_(m.bias, 0)
+
+		# Zero-initialize the last BN in each residual branch,
+		# so that the residual branch starts with zeros, and each residual block behaves like an identity.
+		# This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
+		if zero_init_residual:
+			for m in self.modules():
+				if isinstance(m, Bottleneck):
+					nn.init.constant_(m.bn3.weight, 0)
+				elif isinstance(m, BasicBlock):
+					nn.init.constant_(m.bn2.weight, 0)
+
+	def _make_layer(self, block, planes, blocks, stride=1):
+		downsample = None
+		if stride != 1 or self.inplanes != planes * block.expansion:
+			downsample = nn.Sequential(
+				conv1x1(self.inplanes, planes * block.expansion, stride),
+				nn.BatchNorm2d(planes * block.expansion),
+			)
+
+		layers = []
+		layers.append(block(self.inplanes, planes, stride, downsample))
+		self.inplanes = planes * block.expansion
+		for _ in range(1, blocks):
+			layers.append(block(self.inplanes, planes))
+
+		return nn.Sequential(*layers)
+
+	def forward(self, x):
+		x = self.conv1(x)
+		x = self.bn1(x)
+		x = self.relu(x)
+		x = self.maxpool(x)
+
+		x = self.layer1(x)
+		x = self.layer2(x)
+		x = self.layer3(x)
+		x = self.layer4(x)
+
+		# x = self.avgpool(x)
+		# x = x.view(x.size(0), -1)
+		# x = self.fc(x)
+
+		return x
 
 class custom_vgg16(nn.Module):
 	def __init__(self):
@@ -443,3 +519,109 @@ class HED_vgg16_bn(nn.Module):
 		fuse = F.sigmoid(fuse)
 
 		return d1, d2, d3, d4, d5, fuse
+
+class HED_resnet(nn.Module):
+	def __init__(self, block, layers, num_classes=1000, zero_init_residual=False):
+		super(HED_resnet, self).__init__()
+		self.inplanes = 64
+		self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+		self.bn1 = nn.BatchNorm2d(64)
+		self.relu = nn.ReLU(inplace=True)
+		self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+		self.layer1 = self._make_layer(block, 64, layers[0])
+		self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+		self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+		self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+		#self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+		#self.fc = nn.Linear(512 * block.expansion, num_classes)
+
+		self.dsn1 = nn.Conv2d(64, 1, 1)
+		self.dsn2 = nn.Conv2d(128, 1, 1)
+		self.dsn3 = nn.Conv2d(256, 1, 1)
+		self.dsn4 = nn.Conv2d(512, 1, 1)
+		#self.dsn5 = nn.Conv2d(512, 1, 1)
+		self.fuse = nn.Conv2d(4, 1, 1)
+
+
+		for m in self.modules():
+			if isinstance(m, nn.Conv2d):
+				nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+			elif isinstance(m, nn.BatchNorm2d):
+				nn.init.constant_(m.weight, 1)
+				nn.init.constant_(m.bias, 0)
+
+		# Zero-initialize the last BN in each residual branch,
+		# so that the residual branch starts with zeros, and each residual block behaves like an identity.
+		# This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
+		if zero_init_residual:
+			for m in self.modules():
+				if isinstance(m, Bottleneck):
+					nn.init.constant_(m.bn3.weight, 0)
+				elif isinstance(m, BasicBlock):
+					nn.init.constant_(m.bn2.weight, 0)
+
+	def _make_layer(self, block, planes, blocks, stride=1):
+		downsample = None
+		if stride != 1 or self.inplanes != planes * block.expansion:
+			downsample = nn.Sequential(
+				conv1x1(self.inplanes, planes * block.expansion, stride),
+				nn.BatchNorm2d(planes * block.expansion),
+			)
+
+		layers = []
+		layers.append(block(self.inplanes, planes, stride, downsample))
+		self.inplanes = planes * block.expansion
+		for _ in range(1, blocks):
+			layers.append(block(self.inplanes, planes))
+
+		return nn.Sequential(*layers)
+
+	def forward(self, x):
+		h = x.size(2)
+		w = x.size(3)
+
+		x = self.conv1(x)
+		x = self.bn1(x)
+		x = self.relu(x)
+		x = self.maxpool(x)
+
+		print("x.shape: ", x.shape)
+
+		conv1 = self.layer1(x)
+		print("conv1.shape:", conv1.shape)
+		conv2 = self.layer2(conv1)
+		conv3 = self.layer3(conv2)
+		conv4 = self.layer4(conv3)
+
+		# x = self.avgpool(x)
+		# x = x.view(x.size(0), -1)
+		# x = self.fc(x)
+
+		## side output
+		d1 = self.dsn1(conv1)
+		d2 = F.upsample_bilinear(self.dsn2(conv2), size=(h,w))
+		d3 = F.upsample_bilinear(self.dsn3(conv3), size=(h,w))
+		d4 = F.upsample_bilinear(self.dsn4(conv4), size=(h,w))
+
+		# dsn fusion output
+		fuse = self.fuse(torch.cat((d1, d2, d3, d4), 1))
+		
+		d1 = F.sigmoid(d1)
+		d2 = F.sigmoid(d2)
+		d3 = F.sigmoid(d3)
+		d4 = F.sigmoid(d4)
+		fuse = F.sigmoid(fuse)
+
+		return d1, d2, d3, d4, fuse
+
+def HED_resnet50(pretrained=False, **kwargs):
+	model = HED_resnet(Bottleneck, [3,4,6,3], **kwargs)
+	if pretrained == True:
+		raise NotImplementedError
+	return model
+
+def HED_resnet101(pretrained=False, **kwargs):
+	model = HED_resnet(Bottleneck, [3,4,23,3], **kwargs)
+	if pretrained == True:
+		raise NotImplementedError
+	return model

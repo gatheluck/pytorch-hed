@@ -49,12 +49,16 @@ def train(opt):
 	# initialize the network
 	if opt.arch == 'vgg16':
 		net = HED_vgg16()
+		net.apply(weights_init)
 	elif opt.arch == 'vgg16bn':
 		net = HED_vgg16_bn()
+		net.apply(weights_init)
+	elif opt.arch == 'resnet50':
+		net = HED_resnet50()
+	elif opt.arch == 'resnet101':
+		net = HED_resnet101()
 	else:
 		raise NotImplementedError
-
-	net.apply(weights_init)
 
 	pretrained_dict = torch.load(opt.bb_weight)
 	# if opt.arch == 'vgg16':
@@ -82,15 +86,22 @@ def train(opt):
 	lrDecayEpoch = {3,5,8,10,12}
 
 	fuse_params = list(map(id, net.fuse.parameters()))
-	conv5_params = list(map(id, net.conv5.parameters()))
-	base_params = filter(lambda p: id(p) not in conv5_params+fuse_params,
-											net.parameters())
-
-	optimizer = torch.optim.SGD([
+	if opt.arch == 'vgg16' or opt.arch == 'vgg16bn':
+		conv_last_params = list(map(id, net.conv5.parameters()))
+		base_params = filter(lambda p: id(p) not in conv_last_params+fuse_params, net.parameters())
+		optimizer = torch.optim.SGD([
 							{'params': base_params},
 							{'params': net.conv5.parameters(), 'lr': opt.lr * 100},
 							{'params': net.fuse.parameters(), 'lr': opt.lr * 0.001}
 							], lr=opt.lr, momentum=opt.momentum)
+	else:
+		conv_last_params = list(map(id, net.layer4.parameters()))
+		base_params = filter(lambda p: id(p) not in conv_last_params+fuse_params, net.parameters())
+		optimizer = torch.optim.SGD([
+								{'params': base_params},
+								{'params': net.layer4.parameters(), 'lr': opt.lr * 100},
+								{'params': net.fuse.parameters(), 'lr': opt.lr * 0.001}
+								], lr=opt.lr, momentum=opt.momentum)
 
 	# initialize trainer class
 	trainer = Trainer(net, optimizer, trainDataloader, valDataloader, 
