@@ -3,8 +3,8 @@
 #$ -l rt_F=1
 #$ -l h_rt=24:00:00
 #$ -j y
-#$ -N hed_IN_pt_vgg16
-#$ -o /home/aaa10329ah/user/waseda/abci_log/hed_IN_pt_vgg16.o
+#$ -N hed_IN_vgg16
+#$ -o /home/aaa10329ah/user/waseda/abci_log/hed_IN_vgg16.o
 
 source /etc/profile.d/modules.sh
 module load cuda/9.0/9.0.176.4
@@ -20,8 +20,8 @@ python train.py -a vgg16 \
 								--wd 0.0002 \
 								--num_epochs 10000 \
 								--checkpoint 5 \
-								--bb_weight ./data/models/IN_pt_vgg16.pth \
-								-l ./logs/hed_IN_pt_vgg16 \
+								--bb_weight ./data/models/IN_vgg16.pth \
+								-l ./logs/hed_IN_vgg16 \
 								-r result.json \
 								--cuda \
 								--mGPUs
