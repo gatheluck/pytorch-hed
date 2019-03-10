@@ -25,7 +25,7 @@ class BaseOptions():
 		# GPU
 		parser.add_argument('--cuda', action='store_true', default=False, help='enable GPU')
 		# log
-		parser.add_argument('--print_freq', type=int, default=5000, help='print frequency')
+		parser.add_argument('--print_freq', type=int, default=10000, help='print frequency')
 		parser.add_argument('-l', '--log_dir', type=str, required=True, help='log directory')
 		parser.add_argument('-r', '--result', type=str, required=True, help='result json path')
 
@@ -97,7 +97,7 @@ class TrainOptions(BaseOptions):
 		# hyperparameter and optimaizer
 		parser.add_argument('--optimizer', type=str, default='sgd', help='training optimizer')
 		parser.add_argument('--num_epochs', type=int, default=30, help='number of epochs')
-		parser.add_argument('--lr', type=float, default=1e-6, help='initial learning rate')
+		parser.add_argument('--lr', type=float, default=1e-5, help='initial learning rate')
 		parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 		parser.add_argument('--wd', type=float, default=1e-1, help='weight decay')
 		parser.add_argument('--step_size', type=int, default=5, help='step size for scheduler')
