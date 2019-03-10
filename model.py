@@ -317,23 +317,29 @@ class HED_vgg16(nn.Module):
 		conv5 = self.conv5(conv4)
 
 		## side output
-		d1 = self.dsn1(conv1)
-		d2 = F.upsample_bilinear(self.dsn2(conv2), size=(h,w))
-		d3 = F.upsample_bilinear(self.dsn3(conv3), size=(h,w))
-		d4 = F.upsample_bilinear(self.dsn4(conv4), size=(h,w))
-		d5 = F.upsample_bilinear(self.dsn5(conv5), size=(h,w))
+		w1 = self.dsn1(conv1)
+		w2 = F.upsample_bilinear(self.dsn2(conv2), size=(h,w))
+		w3 = F.upsample_bilinear(self.dsn3(conv3), size=(h,w))
+		w4 = F.upsample_bilinear(self.dsn4(conv4), size=(h,w))
+		w5 = F.upsample_bilinear(self.dsn5(conv5), size=(h,w))
+
+		A1 = w1 #F.relu(w1)
+		A2 = w2 #F.relu(w2)
+		A3 = w3 #F.relu(w3)
+		A4 = w4 #F.relu(w4)
+		A5 = w5 #F.relu(w5)
 
 		# dsn fusion output
-		fuse = self.fuse(torch.cat((d1, d2, d3, d4, d5), 1))
+		fuse = self.fuse(torch.cat((A1, A2, A3, A4, A5), 1))
 		
-		d1 = F.sigmoid(d1)
-		d2 = F.sigmoid(d2)
-		d3 = F.sigmoid(d3)
-		d4 = F.sigmoid(d4)
-		d5 = F.sigmoid(d5)
-		fuse = F.sigmoid(fuse)
+		Y1 = F.sigmoid(A1)
+		Y2 = F.sigmoid(A2)
+		Y3 = F.sigmoid(A3)
+		Y4 = F.sigmoid(A4)
+		Y5 = F.sigmoid(A5)
+		Yfuse = F.sigmoid(fuse)
 
-		return d1, d2, d3, d4, d5, fuse
+		return Y1, Y2, Y3, Y4, Y5, Yfuse
 
 class HED_vgg16_bn(nn.Module):
 	def __init__(self):

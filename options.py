@@ -8,7 +8,7 @@ from torchvision import models
 base = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(base)
 
-model_names = ['vgg16', 'vgg16_bn']
+model_names = ['vgg16', 'vgg16bn']
 dataset_names = ['bsds']
 
 class BaseOptions():
@@ -77,6 +77,8 @@ class BaseOptions():
 		# dataset
 		if opt.dataset == 'bsds':
 			opt.data_root = 'data/HED-BSDS/'
+			opt.std=[0.229, 0.224, 0.225]
+			opt.mean=[0.485, 0.456, 0.406]
 		else:
 			raise NotImplementedError
 

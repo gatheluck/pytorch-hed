@@ -32,12 +32,9 @@ def train(opt):
 	trainPath = opt.data_root+'train_pair.lst'
 
 	# create data loaders from dataset
-	std=[0.229, 0.224, 0.225]
-	mean=[0.485, 0.456, 0.406]
-
 	transform = transforms.Compose([
 									transforms.ToTensor(),
-									transforms.Normalize(mean,std)
+									transforms.Normalize(opt.mean,opt.std)
 							])
 	targetTransform = transforms.Compose([
 									transforms.ToTensor()
@@ -52,7 +49,7 @@ def train(opt):
 	# initialize the network
 	if opt.arch == 'vgg16':
 		net = HED_vgg16()
-	elif opt.arch == 'vgg16_bn':
+	elif opt.arch == 'vgg16bn':
 		net = HED_vgg16_bn()
 	else:
 		raise NotImplementedError

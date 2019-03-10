@@ -10,6 +10,7 @@
 # import libraries
 import math
 import os, time
+import json
 import numpy as np
 from PIL import Image
 import os.path as osp
@@ -58,10 +59,15 @@ class Trainer(object):
 		
 		self.gamma = opt.gamma
 		self.valInterval = 500
-		self.dispInterval = 100
+		self.dispInterval = opt.print_freq
 		self.timeformat = '%Y-%m-%d %H:%M:%S'
 
+		self.opt = opt
+
 	def train(self):
+		best_loss  = np.inf
+		best_epoch = 0
+
 		# function to train network
 		for epoch in range(self.epoch, self.nepochs):
 			
@@ -75,6 +81,7 @@ class Trainer(object):
 			# train the network
 			losses = []
 			lossAcc = 0.0
+			curr_loss = 0.0
 			tbar = tqdm(self.trainDataloader)
 			for i, sample in enumerate(tbar, 0):
 				# get the training batch
@@ -83,25 +90,23 @@ class Trainer(object):
 				data, target = Variable(data), Variable(target)
 				
 				# generator forward
-				tar = target
-				d1, d2, d3, d4, d5, d6 = self.generator(data) 
+				Y = target
+				Y1, Y2, Y3, Y4, Y5, Yfuse = self.generator(data) 
 				
 				# compute loss for batch
-				loss1 = self.bce2d(d1, tar)
-				loss2 = self.bce2d(d2, tar)
-				loss3 = self.bce2d(d3, tar)
-				loss4 = self.bce2d(d4, tar)
-				loss5 = self.bce2d(d5, tar)
-				loss6 = self.bce2d(d6, tar)
+				loss_1 = self.bce2d(Y1, Y)
+				loss_2 = self.bce2d(Y2, Y)
+				loss_3 = self.bce2d(Y3, Y)
+				loss_4 = self.bce2d(Y4, Y)
+				loss_5 = self.bce2d(Y5, Y)
+				loss_fuse = self.bce2d(Yfuse, Y)
 				
-				# all components have equal weightage
-				loss = loss1 + loss2 + loss3 + loss4 + loss5 + loss6
-						
-				if np.isnan(float(loss.item())):
-					raise ValueError('loss is nan while training')
+				loss = loss_1 + loss_2 + loss_3 + loss_4 + loss_5 + loss_fuse # this part is different from original paper
+				if np.isnan(float(loss.item())): raise ValueError('loss is nan while training')
 				
 				losses.append(loss)
 				lossAcc += loss.item()
+				curr_loss += loss.item()
 						
 				# perform backpropogation and update network
 				if i%self.nBatch == 0:
@@ -110,7 +115,7 @@ class Trainer(object):
 					bLoss.backward()
 					self.optimG.step()
 					self.optimG.zero_grad()
-			
+
 					losses = []
 						
 				# visualize the loss
@@ -122,21 +127,31 @@ class Trainer(object):
 				# perform validation every 500 iters
 				if (i+1) % self.valInterval == 0:
 					self.val(epoch+1)
+
+			# end of the epoch
+			if curr_loss < best_loss:
+				best_loss = curr_loss
+				best_epoch = epoch
+				torch.save(self.generator.module.state_dict() if isinstance(self.generator, nn.DataParallel) else self.generator.state_dict(), self.log_dir+"weight_best.pth")
+				# save result
+				save_result({
+					'loss': best_loss,
+				}, self.opt.log_dir, self.opt.result+'_best.json')
 								
 		# save model after every epoch
-		torch.save(self.generator.module.state_dict() if isinstance(self.generator, nn.DataParallel) else self.generator.state_dict(), '%s/HED.pth' % (self.log_dir))
+		torch.save(self.generator.module.state_dict() if isinstance(self.generator, nn.DataParallel) else self.generator.state_dict(), self.log_dir+"weight_final.pth")
+		# save result
+		save_result({
+			'loss': curr_loss,
+		}, self.opt.log_dir, self.opt.result+'_final.json')
 
 	def val(self, epoch):
-		# eval model on validation set
-		print('Evaluation:')
-		
-		# convert to test mode
+		print('Evaluation:') # eval model on validation set
 		self.generator.eval()
 		
 		# save the results
-		if os.path.exists(self.log_dir + '/images') == False:
-				os.mkdir(self.log_dir + '/images')
-		dirName = '%s/images'%(self.log_dir)
+		if not os.path.exists(self.log_dir + '/images'): os.mkdir(self.log_dir + '/images')
+		dirName = self.log_dir+'/images'
 		
 		# perform test inference
 		for i, sample in enumerate(self.valDataloader, 0):            
@@ -157,13 +172,13 @@ class Trainer(object):
 			d6 = self.grayTrans(self.crop(d6))
 			tar = self.grayTrans(self.crop(target))
 			
-			d1.save('%s/sample%d1.png' % (dirName, i))
-			d2.save('%s/sample%d2.png' % (dirName, i))
-			d3.save('%s/sample%d3.png' % (dirName, i))
-			d4.save('%s/sample%d4.png' % (dirName, i))
-			d5.save('%s/sample%d5.png' % (dirName, i))
-			d6.save('%s/sample%d6.png' % (dirName, i))
-			tar.save('%s/sample%dT.png' % (dirName, i))
+			d1.save('{}/sample{:02d}_1.png'.format(dirName, i))
+			d2.save('{}/sample{:02d}_2.png'.format(dirName, i))
+			d3.save('{}/sample{:02d}_3.png'.format(dirName, i))
+			d4.save('{}/sample{:02d}_4.png'.format(dirName, i))
+			d5.save('{}/sample{:02d}_5.png'.format(dirName, i))
+			d6.save('{}/sample{:02d}_6.png'.format(dirName, i))
+			tar.save('{}/sample{:02d}_T.png'.format(dirName, i))
 				
 		print('evaluate done')
 		self.generator.train()
@@ -217,3 +232,11 @@ class Trainer(object):
 	def adjustLR(self):
 		for param_group in self.optimG.param_groups:
 			param_group['lr'] *= self.gamma 
+
+def save_result(result, log_dir, filename):
+	path = os.path.join(log_dir, filename)
+	dir = os.path.dirname(path)
+	os.makedirs(dir, exist_ok=True)
+
+	with open(path, 'w') as f:
+		f.write(json.dumps(result, indent=4))
